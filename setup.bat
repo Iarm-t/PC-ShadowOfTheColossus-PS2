@@ -92,8 +92,6 @@ for /f "delims=" %%f in ('dir /b "Game\*.iso" 2^>nul') do (
 )
 if defined ISOPATH goto iso_ok
 if not "!ISOWRONG!"=="0" goto iso_bad
-if defined ISOOPENED goto iso_bad
-set "ISOOPENED=1"
 echo.
 echo    No disc image was found in the Game folder.
 echo.
@@ -103,11 +101,8 @@ echo.
 echo        Shadow of the Colossus (Europe, Australia)
 echo        SCES-53326, version 1.00 (PAL)
 echo        4,635,918,336 bytes, about 4.3 GB
-echo.
-echo    Opening the Game folder now. Drop the file in, then come back to
-echo    this window and press a key.
-start "" "%~dp0Game"
-pause >nul
+choice /c YN /n /m "    Try again? [Y/N] "
+if errorlevel 2 goto fail_user
 goto iso_scan
 :iso_bad
 echo.
