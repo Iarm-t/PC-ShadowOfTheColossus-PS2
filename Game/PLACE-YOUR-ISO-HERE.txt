@@ -1,0 +1,19 @@
+This folder holds your copy of the game disc.
+
+Drop your Shadow of the Colossus disc image here, as a file whose name
+ends in .iso (any name is fine). The port supports exactly one release:
+
+    Shadow of the Colossus (Europe, Australia)
+    SCES-53326, version 1.00 (PAL)
+    4,635,918,336 bytes, about 4.3 GB
+
+Any other version or region (NTSC US/JP, later revisions, the PS3/PS2
+re-releases, trimmed or re-packed dumps) is rejected: the recompiled code
+matches this exact disc, and every tool checks the SHA-256 before doing
+anything with the image.
+
+Once the file is here, run setup.bat in the repository root. It verifies
+the image, builds everything and offers to start the game.
+
+You can also keep the image somewhere else and point the SOTC_ISO
+environment variable at it instead.

@@ -71,9 +71,19 @@ development log), [Docs/GAME_BUILD.md](Docs/GAME_BUILD.md), [Docs/CONFIGURATION.
 ```bat
 git clone --recursive <this repository>
 cd <repository>
+setup.bat
 ```
 
-1. Put your disc image in `Game/` (any `*.iso` of the right size is found automatically, or set `SOTC_ISO`).
+`setup.bat` is the one-step path: it checks the Git submodules, Python and Visual Studio, finds and
+SHA-256-verifies your disc image, tells you exactly what to fix if something is missing (and waits
+while you fix it), then configures, builds, generates the game code and offers to start the game.
+Running it again is safe — finished steps are skipped or re-checked in seconds.
+
+If you prefer doing the same steps by hand:
+
+1. Put your disc image in `Game/` (the folder is part of the repository and contains a
+   `PLACE-YOUR-ISO-HERE.txt` placeholder; any `*.iso` of the right size is found automatically, or set
+   `SOTC_ISO`).
 2. Configure and build the recompiler:
 
    ```bat
@@ -139,7 +149,8 @@ switches are all in `sotc.ini`; see [Docs/CONFIGURATION.md](Docs/CONFIGURATION.m
 | `Docs/` | Architecture, formats, configuration, performance notes and the development log |
 | `Analysis/` | Address map and function notes derived from the game's symbol tables |
 
-Git-ignored and never committed: `Game/` (your disc), `Emulator/`, `Tools/pcsx2-oracle/`, `Port/generated/`,
+Git-ignored and never committed: `Game/*.iso` (your disc image; the `Game/` folder itself is committed
+with a placeholder telling you what to drop in), `Emulator/`, `Tools/pcsx2-oracle/`, `Port/generated/`,
 `Analysis/extracted/`, `Analysis/oracle/` and `build/`.
 
 ## License

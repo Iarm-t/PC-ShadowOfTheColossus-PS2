@@ -1,4 +1,14 @@
-/Game/
+/Game/*.iso
+/Game/*.bin
+/Game/*.cue
+/Game/*.chd
+/Game/*.mdf
+/Game/*.img
+/Game/*.zip
+/Game/*.7z
+/Game/*.rar
+/Game/*.rvz
+/Game/*.gcm
 /Emulator/
 /build/
 /out/

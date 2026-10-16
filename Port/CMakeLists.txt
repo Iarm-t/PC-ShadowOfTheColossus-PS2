@@ -1,9 +1,11 @@
 set(SOTC_GENERATED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 
 if(NOT EXISTS "${SOTC_GENERATED_DIR}/register_functions.cpp" OR NOT EXISTS "${SOTC_GENERATED_DIR}/sotc_layout_generated.h")
-    message(FATAL_ERROR
-        "Recompiled game code not found in ${SOTC_GENERATED_DIR}.\n"
-        "Run Tools/generate.bat (or Tools/generate.py) with your own disc image first.")
+    message(STATUS
+        "Recompiled game code not found in ${SOTC_GENERATED_DIR}; the sotc target will be added "
+        "after Tools/generate.bat has produced it. Run Tools/generate.bat (or Tools/generate.py) "
+        "with your own disc image, then configure again.")
+    return()
 endif()
 
 file(GLOB SOTC_GENERATED_SOURCES CONFIGURE_DEPENDS "${SOTC_GENERATED_DIR}/*.cpp")
