@@ -1,3 +1,5 @@
+![Shadow of the Colossus — native PC port (fully vibe-coded)](social-preview-1280x640.jpg)
+
 # Shadow of the Colossus — native PC port (fully vibe-coded)
 
 An unofficial native Windows port of **Shadow of the Colossus** (PS2, PAL, SCES-53326 v1.00), built by statically

@@ -86,7 +86,9 @@ def main():
         run([find_recompiler(), os.path.basename(staged_toml)], cwd=RECOMP_DIR)
     finally:
         os.remove(staged_toml)
+    print("Copying the generated sources into Port/generated (thousands of files, this can take a minute)...", flush=True)
     sync_tree(staging, GENERATED)
+    print("Verifying the runtime relocation sites...", flush=True)
     run([sys.executable, os.path.join(ROOT, "Tools", "verify_reloc_sites.py"),
          os.path.join(LINK_OUT, "sotc_runtime_relocs.csv"), GENERATED, os.path.join(LINK_OUT, "sotc_functions.csv")])
     shutil.copyfile(os.path.join(LINK_OUT, "sotc_address_map.csv"), os.path.join(ROOT, "Analysis", "ADDRESS_MAP.generated.csv"))

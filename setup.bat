@@ -14,6 +14,7 @@ echo.
 echo  This checks your system, verifies your game disc, builds the port
 echo  and offers to start it. If something is missing it tells you what,
 echo  waits for you to fix it and continues by itself.
+echo  Keep this console open until it says Setup complete.
 echo  Running it again is safe: finished steps are skipped or re-checked
 echo  in seconds.
 echo.
@@ -124,6 +125,19 @@ goto iso_scan
 :iso_ok
 echo    Verified "Game\!ISOFNAME!" - SHA-256 matches SCES-53326 v1.00.
 :step5
+call :build_busy
+if not "!BUSY!"=="1" goto step5_go
+echo    The build folder looks busy: another process is holding files in
+echo    it - most likely a build running in another window, or an
+echo    antivirus scan. Two processes cannot build in the same folder at
+echo    once, and that is what usually causes a "Permission denied"
+echo    error from ninja. Wait for the other build to finish, then try
+echo    again.
+choice /c YN /n /m "    Wait 5 seconds and try again? [Y/N] "
+if errorlevel 2 goto fail
+ping -n 6 127.0.0.1 >nul
+goto step5
+:step5_go
 echo [5/6] Building the code recompiler - MSVC configure plus compile,
 echo       a few minutes the first time...
 call configure.bat
@@ -140,6 +154,9 @@ echo     files, this takes a few minutes...
 call Tools\generate.bat
 if errorlevel 1 goto fail
 call :stamp_generated
+echo     Game code generated. The recompiler's report above ("Recompilation
+echo     completed successfully") only covers that generation; the port's
+echo     own executable is compiled in the steps below.
 echo     Re-configuring with the generated game code...
 call configure.bat
 if errorlevel 1 goto fail
@@ -147,8 +164,9 @@ goto gen_done
 :gen_skip
 echo     Generated game code is already current - skipping generation.
 :gen_done
-echo     Compiling the port - up to an hour on the first build, seconds
-echo     afterwards...
+echo     Compiling the port now - up to an hour on the first build, only a
+echo     few seconds afterwards. Do not close this console until Setup
+echo     complete appears.
 call build.bat
 if errorlevel 1 goto fail
 echo.
@@ -244,6 +262,13 @@ exit /b 0
 set "%~2=%~t1"
 exit /b 0
 
+:build_busy
+set "BUSY=0"
+if not exist "build\port\.ninja_log" exit /b 0
+powershell -NoProfile -Command "try { [IO.File]::Open('build\port\.ninja_log','Open','ReadWrite','None').Close() } catch { exit 1 }"
+if errorlevel 1 set "BUSY=1"
+exit /b 0
+
 :find_vs
 if defined VSROOT (
     if exist "!VSROOT!\VC\Auxiliary\Build\vcvars64.bat" if exist "!VSROOT!\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" if exist "!VSROOT!\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe" exit /b 0
@@ -263,9 +288,18 @@ exit /b 0
 :fail
 echo.
 echo  ------------------------------------------------------------------
-echo   A step failed. Scroll up for the actual error, fix it, then run
-echo   setup.bat again - completed steps are skipped or re-checked fast.
+echo   A step failed. Scroll up for the actual error and fix the cause.
+echo   If the error mentions "Permission denied", the build folder was
+echo   in use by another process while the step ran - wait for it to
+echo   finish (or close it) before continuing. Completed steps are
+echo   skipped or re-checked in seconds, so trying again is cheap.
 echo  ------------------------------------------------------------------
+choice /c YN /n /m "   Try again now? [Y/N] "
+if errorlevel 2 goto fail_quit
+ping -n 6 127.0.0.1 >nul
+goto step5
+
+:fail_quit
 pause
 exit /b 1
 
