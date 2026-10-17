@@ -3,7 +3,6 @@ setlocal enableextensions enabledelayedexpansion
 title Shadow of the Colossus - PC port setup
 cd /d "%~dp0"
 
-set "DISCSHA256=068925770645266189005f09c9a9a1fee25726bfc93c89b12f832f3673664ac4"
 set "DISCSIZE=4635918336"
 
 echo.
@@ -123,7 +122,9 @@ choice /c YN /n /m "    Try again? [Y/N] "
 if errorlevel 2 goto fail_user
 goto iso_scan
 :iso_ok
-echo    Verified "Game\!ISOFNAME!" - SHA-256 matches SCES-53326 v1.00.
+echo    Accepted "Game\!ISOFNAME!" - size matches SCES-53326 v1.00. The
+echo    boot ELF and modules inside the image are verified when the game
+echo    code is generated.
 :step5
 call :build_busy
 if not "!BUSY!"=="1" goto step5_go
@@ -191,44 +192,9 @@ if not "%~z1"=="%DISCSIZE%" (
     set /a ISOWRONG+=1
     exit /b 0
 )
-call :hash_file "%~1" "%~z1" "%~2"
-if not defined FILEHASH exit /b 0
-if /i "!FILEHASH!"=="%DISCSHA256%" (
-    set "ISOPATH=%~1"
-    set "ISOFNAME=%~2"
-    set "ISOSIZE=%~z1"
-    exit /b 0
-)
-echo    Game\!TRYNAME!: right size, but the SHA-256 does not match
-echo    SCES-53326 v1.00 - skipping.
-set /a ISOWRONG+=1
-exit /b 0
-
-:hash_file
-set "FILEHASH="
-set "HNAME=%~3"
-set "CNAME="
-set "CSIZE="
-set "CHASH="
-if exist "build\iso_state.txt" for /f "usebackq delims=" %%L in ("build\iso_state.txt") do (
-    if not defined CNAME (set "CNAME=%%L") else if not defined CSIZE (set "CSIZE=%%L") else if not defined CHASH set "CHASH=%%L"
-)
-if defined CHASH if /i "!CNAME!"=="%~3" if "!CSIZE!"=="%~2" (
-    set "FILEHASH=!CHASH!"
-    exit /b 0
-)
-echo    Verifying Game\!HNAME! against the supported release - reading
-echo    about 4.3 GB, this takes around a minute and happens only once...
-for /f "delims=" %%H in ('certutil -hashfile "%~1" SHA256 ^| find /v ":"') do set "FILEHASH=%%H"
-if not defined FILEHASH (
-    echo    Could not compute the SHA-256 of Game\!HNAME! - certutil failed.
-    exit /b 0
-)
-(
-echo !HNAME!
-echo %~2
-echo !FILEHASH!
-)>"build\iso_state.txt"
+set "ISOPATH=%~1"
+set "ISOFNAME=%~2"
+set "ISOSIZE=%~z1"
 exit /b 0
 
 :need_generate
