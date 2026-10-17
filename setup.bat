@@ -145,7 +145,7 @@ if errorlevel 1 goto fail
 call build.bat ps2_recomp
 if errorlevel 1 goto fail
 :step6
-echo [6/6] Building the port...
+echo [6/7] Building the port...
 set "DOGEN=1"
 call :need_generate
 if not "!DOGEN!"=="1" goto gen_skip
@@ -169,6 +169,9 @@ echo     few seconds afterwards. Do not close this console until Setup
 echo     complete appears.
 call build.bat
 if errorlevel 1 goto fail
+:step7
+call :capture_step
+if errorlevel 1 goto fail
 echo.
 echo  ==================================================================
 echo   Setup complete.
@@ -180,6 +183,28 @@ echo.
 choice /c YN /n /m "   Start the game now? [Y/N] "
 if errorlevel 2 exit /b 0
 call run.bat
+exit /b 0
+
+:capture_step
+if exist "Port\generated\vu1\vu1_programs.cpp" (
+    echo     VU1 microcode programs already present - skipping capture.
+    exit /b 0
+)
+if not exist "%ISOPATH%" (
+    echo     No disc image available - skipping capture.
+    exit /b 0
+)
+echo     Recording the disc's VU1 microcode once: the game runs by itself
+echo     in the background with no window and no audio for up to a few
+echo     rounds x 12 minutes, then the captured programs are compiled in.
+echo     You can use this console meanwhile; do not close it though.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Tools\vu1_capture_setup.ps1" -Root "%~dp0." -IsoPath "%ISOPATH%"
+if errorlevel 1 (
+    echo     Capture did not complete: the game falls back to the software
+    echo     VU1 interpreter in that case - playable but slower in some
+    echo     scenes. Re-running setup.bat later continues where it stopped.
+    exit /b 1
+)
 exit /b 0
 
 :try_iso

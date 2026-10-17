@@ -221,6 +221,8 @@ int main(int argc, char *argv[])
         PS2Runtime runtime;
         const char *maximizeWindow = std::getenv("SOTC_WINDOW_MAXIMIZED");
         ps2_host_display::setStartMaximized(!maximizeWindow || std::string_view(maximizeWindow) != "0");
+        const char *headlessEnv = std::getenv("SOTC_HEADLESS");
+        ps2_host_display::setHeadless(headlessEnv && *headlessEnv && std::string_view(headlessEnv) != "0" && std::string_view(headlessEnv) != "off");
         if (!runtime.initialize("Shadow of the Colossus"))
         {
             SOTC_ERROR(Boot, "runtime initialization failed");
