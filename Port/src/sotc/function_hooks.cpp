@@ -1,6 +1,8 @@
 #include "sotc/function_hooks.h"
 #include "sotc/log.h"
 
+#include <array>
+#include <atomic>
 #include <iomanip>
 #include <cstdlib>
 #include <map>
@@ -20,8 +22,49 @@ namespace sotc
             std::shared_ptr<const std::vector<EntryObserver>> snapshot;
         };
 
+        struct FastHookSlot
+        {
+            std::atomic<uint32_t> address{0u};
+            std::atomic<const Hook *> hook{nullptr};
+        };
+
+        constexpr size_t kFastHookTableSize = 256u;
+        constexpr size_t kFastHookTableMask = kFastHookTableSize - 1u;
+
         std::mutex g_mutex;
         std::unordered_map<uint32_t, Hook> g_hooks;
+        std::array<FastHookSlot, kFastHookTableSize> g_fastHooks{};
+
+        void publishFastHook(uint32_t address, const Hook *hook) noexcept
+        {
+            size_t idx = ((address >> 2u) * 2654435761u) & kFastHookTableMask;
+            for (size_t probe = 0u; probe < kFastHookTableSize; ++probe)
+            {
+                const uint32_t slotAddr = g_fastHooks[idx].address.load(std::memory_order_relaxed);
+                if (slotAddr == address || slotAddr == 0u)
+                {
+                    g_fastHooks[idx].hook.store(hook, std::memory_order_release);
+                    g_fastHooks[idx].address.store(address, std::memory_order_release);
+                    return;
+                }
+                idx = (idx + 1u) & kFastHookTableMask;
+            }
+        }
+
+        const Hook *lookupFastHook(uint32_t address) noexcept
+        {
+            size_t idx = ((address >> 2u) * 2654435761u) & kFastHookTableMask;
+            for (size_t probe = 0u; probe < kFastHookTableSize; ++probe)
+            {
+                const uint32_t slotAddr = g_fastHooks[idx].address.load(std::memory_order_acquire);
+                if (slotAddr == address)
+                    return g_fastHooks[idx].hook.load(std::memory_order_acquire);
+                if (slotAddr == 0u)
+                    return nullptr;
+                idx = (idx + 1u) & kFastHookTableMask;
+            }
+            return nullptr;
+        }
 
         const char *statusName(ReplacementStatus status)
         {
@@ -55,6 +98,8 @@ namespace sotc
 
     GuestFunction FunctionHooks::original(uint32_t address) const
     {
+        if (const Hook *fast = lookupFastHook(address))
+            return fast->original;
         std::lock_guard<std::mutex> lock(g_mutex);
         const auto it = g_hooks.find(address);
         return it == g_hooks.end() ? nullptr : it->second.original;
@@ -88,6 +133,7 @@ namespace sotc
         }
         it->second.observers.push_back(std::move(observer));
         it->second.snapshot = std::make_shared<const std::vector<EntryObserver>>(it->second.observers);
+        publishFastHook(address, &it->second);
         return true;
     }
 
@@ -105,19 +151,26 @@ namespace sotc
             hook.original = original;
         }
         hook.binding = FunctionBinding{address, std::move(name), status, std::move(reason)};
+        publishFastHook(address, &hook);
         return m_runtime->replaceFunction(address, implementation);
     }
 
     void FunctionHooks::observedTrampoline(uint8_t *rdram, R5900Context *ctx, PS2Runtime *runtime)
     {
         const uint32_t address = ctx->pc;
+        if (const Hook *fastHook = lookupFastHook(address))
+        {
+            const auto *obsList = fastHook->snapshot.get();
+            if (obsList)
+            {
+                for (const auto &observer : *obsList)
+                    observer(rdram, ctx, runtime);
+            }
+            fastHook->original(rdram, ctx, runtime);
+            return;
+        }
         GuestFunction original = nullptr;
-        std::vector<EntryObserver> observers;
         std::shared_ptr<const std::vector<EntryObserver>> snapshot;
-        static const bool fast = [] {
-            const char *setting = std::getenv("SOTC_FAST_OBSERVERS");
-            return !setting || std::string_view(setting) != "0";
-        }();
         {
             std::lock_guard<std::mutex> lock(g_mutex);
             const auto it = g_hooks.find(address);
@@ -128,14 +181,14 @@ namespace sotc
                 return;
             }
             original = it->second.original;
-            if (fast)
-                snapshot = it->second.snapshot;
-            else
-                observers = it->second.observers;
+            snapshot = it->second.snapshot;
         }
-        for (const auto &observer : snapshot ? *snapshot : observers)
+        if (snapshot)
         {
-            observer(rdram, ctx, runtime);
+            for (const auto &observer : *snapshot)
+            {
+                observer(rdram, ctx, runtime);
+            }
         }
         original(rdram, ctx, runtime);
     }
