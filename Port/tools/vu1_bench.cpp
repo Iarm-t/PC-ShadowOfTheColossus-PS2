@@ -234,6 +234,8 @@ int main(int argc, char **argv)
         std::snprintf(name, sizeof(name), "/vu1_%016" PRIx64 ".bin", record.hash);
         images[record.hash] = readFile(imageDir + name);
         programs[record.hash] = findCompiledVu1ProgramByHash(record.hash);
+        if (!programs[record.hash] && images[record.hash].size() == 0x4000u)
+            programs[record.hash] = findCompiledVu1ProgramByImage(images[record.hash].data(), 0x4000u);
         std::printf("image %016" PRIx64 ": %s, %s\n", record.hash, images[record.hash].size() == 0x4000u ? "loaded" : "MISSING",
                     programs[record.hash] ? "compiled" : "not compiled");
     }

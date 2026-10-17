@@ -35,6 +35,22 @@ def find_recompiler():
     sys.exit("ps2_recomp.exe not found. Run configure.bat, then: build.bat ps2_recomp")
 
 
+def find_vu1_recompiler():
+    candidates = [
+        os.path.join(ROOT, "build", "port", "vu1_recomp.exe"),
+        os.path.join(ROOT, "build", "port", "External", "PS2Recomp", "ps2xTest", "vu1_recomp.exe"),
+        os.path.join(ROOT, "build", "ps2recomp-tools", "ps2xTest", "vu1_recomp.exe"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    run([os.path.join(ROOT, "build.bat"), "vu1_recomp"])
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    sys.exit("vu1_recomp.exe not found. Run configure.bat, then: build.bat vu1_recomp")
+
+
 def run(cmd, cwd=ROOT):
     print("+", " ".join(f'"{c}"' if " " in c else c for c in cmd), flush=True)
     r = subprocess.run(cmd, cwd=cwd)
@@ -44,7 +60,8 @@ def run(cmd, cwd=ROOT):
 
 def sync_tree(src, dst):
     changed = removed = 0
-    wanted = set(os.listdir(src))
+    os.makedirs(dst, exist_ok=True)
+    wanted = {name for name in os.listdir(src) if os.path.isfile(os.path.join(src, name))}
     for name in wanted:
         a = os.path.join(src, name)
         b = os.path.join(dst, name)
@@ -57,13 +74,14 @@ def sync_tree(src, dst):
         if name not in wanted and os.path.isfile(os.path.join(dst, name)):
             os.remove(os.path.join(dst, name))
             removed += 1
-    print(f"generated sources: {len(wanted)} total, {changed} written, {removed} removed")
+    print(f"generated sources ({os.path.relpath(dst, ROOT)}): {len(wanted)} total, {changed} written, {removed} removed")
 
 
 def main():
     ap = argparse.ArgumentParser(description="Regenerate the recompiled game code from your own disc image")
     ap.add_argument("--iso")
     ap.add_argument("--verify-ram", help="optional PCSX2 RAM dump to verify module relocation against")
+    ap.add_argument("--vu1-only", action="store_true")
     args = ap.parse_args()
 
     iso = find_iso(args.iso)
@@ -72,26 +90,37 @@ def main():
     if args.verify_ram:
         link_cmd += ["--verify-ram", args.verify_ram]
     staging = os.path.join(ROOT, "build", "generated_staging")
-    if os.path.isdir(staging):
-        shutil.rmtree(staging)
-    os.makedirs(staging)
+    vu1_staging = os.path.join(ROOT, "build", "generated_vu1_staging")
+    if os.path.isdir(vu1_staging):
+        shutil.rmtree(vu1_staging)
+    os.makedirs(vu1_staging)
     os.makedirs(GENERATED, exist_ok=True)
-    link_cmd[-1] = os.path.join(staging, "sotc_layout_generated.h")
+    if not args.vu1_only:
+        if os.path.isdir(staging):
+            shutil.rmtree(staging)
+        os.makedirs(staging)
+        link_cmd[-1] = os.path.join(staging, "sotc_layout_generated.h")
     run(link_cmd)
-    toml = open(os.path.join(RECOMP_DIR, "sotc.toml")).read()
-    toml = toml.replace('output = "../generated"', 'output = "' + staging.replace("\\", "/") + '"')
-    staged_toml = os.path.join(RECOMP_DIR, "sotc.staging.toml")
-    open(staged_toml, "w").write(toml)
-    try:
-        run([find_recompiler(), os.path.basename(staged_toml)], cwd=RECOMP_DIR)
-    finally:
-        os.remove(staged_toml)
-    print("Copying the generated sources into Port/generated (thousands of files, this can take a minute)...", flush=True)
-    sync_tree(staging, GENERATED)
-    print("Verifying the runtime relocation sites...", flush=True)
-    run([sys.executable, os.path.join(ROOT, "Tools", "verify_reloc_sites.py"),
-         os.path.join(LINK_OUT, "sotc_runtime_relocs.csv"), GENERATED, os.path.join(LINK_OUT, "sotc_functions.csv")])
-    shutil.copyfile(os.path.join(LINK_OUT, "sotc_address_map.csv"), os.path.join(ROOT, "Analysis", "ADDRESS_MAP.generated.csv"))
+    if not args.vu1_only:
+        toml = open(os.path.join(RECOMP_DIR, "sotc.toml")).read()
+        toml = toml.replace('output = "../generated"', 'output = "' + staging.replace("\\", "/") + '"')
+        staged_toml = os.path.join(RECOMP_DIR, "sotc.staging.toml")
+        open(staged_toml, "w").write(toml)
+        try:
+            run([find_recompiler(), os.path.basename(staged_toml)], cwd=RECOMP_DIR)
+        finally:
+            os.remove(staged_toml)
+    print("Recompiling static VU1 microprograms...", flush=True)
+    run([find_vu1_recompiler(), os.path.join(LINK_OUT, "vu1_capture"), vu1_staging])
+    if not args.vu1_only:
+        print("Copying the generated sources into Port/generated (thousands of files, this can take a minute)...", flush=True)
+        sync_tree(staging, GENERATED)
+    sync_tree(vu1_staging, os.path.join(GENERATED, "vu1"))
+    if not args.vu1_only:
+        print("Verifying the runtime relocation sites...", flush=True)
+        run([sys.executable, os.path.join(ROOT, "Tools", "verify_reloc_sites.py"),
+             os.path.join(LINK_OUT, "sotc_runtime_relocs.csv"), GENERATED, os.path.join(LINK_OUT, "sotc_functions.csv")])
+        shutil.copyfile(os.path.join(LINK_OUT, "sotc_address_map.csv"), os.path.join(ROOT, "Analysis", "ADDRESS_MAP.generated.csv"))
     print("Generated code is up to date. Next: build.bat")
 
 

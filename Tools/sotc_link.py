@@ -473,6 +473,57 @@ def emit_layout_header(path, profile, linker, sites):
         f.write("\n".join(lines))
 
 
+def fnv1a64(data):
+    h = 0xCBF29CE484222325
+    for b in data:
+        h = ((h ^ b) * 0x100000001B3) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+
+def extract_vu1_programs(modules, out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+    for name in os.listdir(out_dir):
+        if name.startswith("vu1_") and name.endswith(".bin"):
+            os.remove(os.path.join(out_dir, name))
+    extracted = []
+    for _p, m in modules:
+        vutext = m.section_by_name(".vutext")
+        if not vutext:
+            continue
+        vt = bytes(m.data[vutext.image_addr:vutext.image_addr + vutext.size])
+        vusyms = sorted([s for s in m.symbols if s.shndx == vutext.index and s.name], key=lambda s: s.value)
+        for i, s in enumerate(vusyms):
+            end = vusyms[i + 1].value if i + 1 < len(vusyms) else len(vt)
+            blob = vt[s.value:end]
+            qwc = struct.unpack_from("<I", blob, 0)[0] & 0xFFFF
+            pos = 8
+            limit = 16 + qwc * 16
+            image = bytearray(0x4000)
+            used = 0
+            while pos < limit:
+                cmd = struct.unpack_from("<I", blob, pos)[0]
+                op = (cmd >> 24) & 0x7F
+                if op == 0:
+                    pos += 4
+                elif op == 0x4A:
+                    num = (cmd >> 16) & 0xFF
+                    count = 256 if num == 0 else num
+                    addr = (cmd & 0xFFFF) * 8
+                    byte_len = count * 8
+                    pos += 4
+                    image[addr:addr + byte_len] = blob[pos:pos + byte_len]
+                    used = max(used, addr + byte_len)
+                    pos += byte_len
+                else:
+                    raise ValueError(f"{m.name}:{s.name}: unexpected VIF command {cmd:#010x} at {pos:#x}")
+            h = fnv1a64(image)
+            out_path = os.path.join(out_dir, f"vu1_{h:016x}.bin")
+            with open(out_path, "wb") as f:
+                f.write(image)
+            extracted.append((s.name, h, used))
+    return extracted
+
+
 def main():
     ap = argparse.ArgumentParser(description="Link Shadow of the Colossus boot ELF + XFF modules into a recompilation image")
     ap.add_argument("--profile", required=True)
@@ -578,6 +629,8 @@ def main():
             prov = "" if f.name.startswith("sub_") else f.name
             cw.writerow([f"0x{f.start:08X}", f"0x{f.end:08X}", f.module, f"sub_{f.start:08X}", prov, f.source, f.confidence, "recomp", ""])
 
+    vu1_progs = extract_vu1_programs(modules, os.path.join(args.out, "vu1_capture"))
+
     layout = {
         "boot_entry": f"0x{entry:08X}",
         "modules": [{"name": lm.module.name, "base": f"0x{lm.base:08X}", "bss": f"0x{lm.bss_addr:08X}", "entry": f"0x{lm.entry:08X}",
@@ -587,6 +640,7 @@ def main():
                     for lm in linker.modules],
         "function_count": len(rows),
         "runtime_reloc_sites": len(sites),
+        "vu1_programs": [{"name": name, "hash": f"0x{h:016x}", "size": sz} for name, h, sz in vu1_progs],
     }
     json.dump(layout, open(os.path.join(args.out, "sotc_layout.json"), "w"), indent=2)
     if args.emit_header:
@@ -601,6 +655,7 @@ def main():
     report.append(f"runtime relocation sites in code: {len(sites)}")
     unresolved = sorted({s[3] for s in sites if s[3] not in all_exports})
     report.append(f"imports bound to undefined stub at link time: {len(unresolved)}")
+    report.append(f"vu1 programs extracted: {len(vu1_progs)}")
     open(os.path.join(args.out, "link_report.txt"), "w").write("\n".join(report) + "\n")
     print("\n".join(report))
 
