@@ -58,7 +58,17 @@ More detail: [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md), [Docs/PROGRESS.md](Do
 development log), [Docs/GAME_BUILD.md](Docs/GAME_BUILD.md), [Docs/CONFIGURATION.md](Docs/CONFIGURATION.md),
 [Docs/PERFORMANCE.md](Docs/PERFORMANCE.md) and [Docs/TESTING.md](Docs/TESTING.md).
 
-## Requirements
+## Prebuilt Windows packages
+
+Experimental prebuilt ZIPs can be distributed through [GitHub Releases](https://github.com/LightVelox/sotc-vibe-pc/releases).
+When a ZIP is available, extract it, put your supported ISO in its `Game` folder, and run `Play.bat`.
+You can also drag the ISO onto `Play.bat` to keep it in another folder. Prebuilt packages include the C++
+runtime DLLs and do not require Visual Studio, Python, CMake, Ninja, or local compilation.
+
+Only the PAL SCES-53326 v1.00 disc is supported. Windows x64, an AVX2-capable CPU, and OpenGL 4.6 are required.
+To create a package from a finished build, see [Docs/RELEASING.md](Docs/RELEASING.md).
+
+## Source build requirements
 
 - Windows 10 or 11, x64.
 - MSVC x64 build tools from Visual Studio 2022 or newer (including Visual Studio 2026), or the standalone

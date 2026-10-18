@@ -1,0 +1,7 @@
+Put your own Shadow of the Colossus ISO in this folder, then run Play.bat.
+
+Supported disc: Europe/Australia PAL, SCES-53326, version 1.00.
+Required size: 4,635,918,336 bytes. Any filename ending in .iso is fine.
+
+You can also keep the ISO elsewhere and drag it onto Play.bat.
+No compilation or developer tools are needed for this prebuilt release.
