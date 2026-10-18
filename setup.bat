@@ -62,18 +62,18 @@ goto step2
 :py_ok
 echo    Found Python !PYVER!.
 :step3
-echo [3/6] Checking Visual Studio 2022...
-call :find_vs
-if defined VSROOT goto vs_ok
+echo [3/6] Checking MSVC C++ build tools...
+call Tools\win\vsenv.cmd
+if not errorlevel 1 goto vs_ok
 echo.
-echo    Visual Studio 2022 with the "Desktop development with C++" workload
-echo    is required to compile the port. It provides the MSVC compiler,
-echo    CMake and Ninja. Install the free Community edition from
-echo    https://visualstudio.microsoft.com/downloads/ and select that
-echo    workload in the installer.
-echo    If Visual Studio is installed in a custom folder, set the VSROOT
-echo    environment variable to that folder and run setup.bat again.
-choice /c YN /n /m "    Install it now, then press Y to continue, or N to quit? "
+echo    Use Visual Studio 2022 or newer, including Visual Studio 2026,
+echo    or the standalone Build Tools. The full Visual Studio IDE is optional.
+echo    Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+echo    Select "Desktop development with C++", a Windows 10 or 11 SDK,
+echo    and "C++ CMake tools for Windows" in Visual Studio Installer.
+echo    CMake and Ninja can also be installed separately on PATH.
+echo    Custom installations can be selected with the VSROOT environment variable.
+choice /c YN /n /m "    Install or modify the tools, then press Y to continue, or N to quit? "
 if errorlevel 2 goto fail_user
 goto step3
 :vs_ok
@@ -236,22 +236,6 @@ set "BUSY=0"
 if not exist "build\port\.ninja_log" exit /b 0
 powershell -NoProfile -Command "try { [IO.File]::Open('build\port\.ninja_log','Open','ReadWrite','None').Close() } catch { exit 1 }"
 if errorlevel 1 set "BUSY=1"
-exit /b 0
-
-:find_vs
-if defined VSROOT (
-    if exist "!VSROOT!\VC\Auxiliary\Build\vcvars64.bat" if exist "!VSROOT!\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" if exist "!VSROOT!\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe" exit /b 0
-    echo    VSROOT points at "!VSROOT!" but the expected tools were not
-    echo    found there - searching the usual install locations too.
-    set "VSROOT="
-)
-for %%P in (
-    "C:\Program Files\Microsoft Visual Studio\2022\Community"
-    "C:\Program Files\Microsoft Visual Studio\2022\Professional"
-    "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
-    "C:\Program Files\Microsoft Visual Studio\2022\BuildTools"
-    "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"
-) do if not defined VSROOT if exist "%%~P\VC\Auxiliary\Build\vcvars64.bat" if exist "%%~P\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" if exist "%%~P\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe" set "VSROOT=%%~P"
 exit /b 0
 
 :fail

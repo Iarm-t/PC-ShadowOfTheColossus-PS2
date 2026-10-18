@@ -61,7 +61,10 @@ development log), [Docs/GAME_BUILD.md](Docs/GAME_BUILD.md), [Docs/CONFIGURATION.
 ## Requirements
 
 - Windows 10 or 11, x64.
-- Visual Studio 2022 with the C++ desktop workload (MSVC), CMake and Ninja (both ship with Visual Studio).
+- MSVC x64 build tools from Visual Studio 2022 or newer (including Visual Studio 2026), or the standalone
+  [Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/). The full Visual Studio IDE is optional.
+  In Visual Studio Installer, select **Desktop development with C++**, a **Windows 10 or 11 SDK**, and
+  **C++ CMake tools for Windows**. CMake and Ninja can also be installed separately on `PATH`.
 - Python 3.10 or newer.
 - A GPU with OpenGL 4.6.
 - Your own dump of **Shadow of the Colossus (Europe, Australia), SCES-53326, version 1.00**, as a 2048-byte-sector
@@ -76,10 +79,13 @@ cd <repository>
 setup.bat
 ```
 
-`setup.bat` is the one-step path: it checks the Git submodules, Python and Visual Studio, finds and
+`setup.bat` is the one-step path: it checks the Git submodules, Python and the C++ build tools, finds and
 SHA-256-verifies your disc image, tells you exactly what to fix if something is missing (and waits
 while you fix it), then configures, builds, generates the game code and offers to start the game.
 Running it again is safe — finished steps are skipped or re-checked in seconds.
+
+Setup discovers Visual Studio and standalone Build Tools installations using Microsoft's `vswhere`, including
+custom install locations. Set `VSROOT` to an installation directory to select it explicitly.
 
 If you prefer doing the same steps by hand:
 
