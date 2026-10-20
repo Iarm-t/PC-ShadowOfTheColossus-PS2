@@ -32,6 +32,7 @@ namespace sotc
             PokeByte,
             Peek,
             Save,
+            Load,
             Quit,
         };
 
@@ -157,6 +158,13 @@ namespace sotc
                 command.path = spec.substr(pathStart);
                 return true;
             }
+            if (op == "load" && parts.size() >= 3)
+            {
+                command.op = Op::Load;
+                const size_t pathStart = spec.find(":load:") + 6;
+                command.path = spec.substr(pathStart);
+                return true;
+            }
             if (op == "quit")
             {
                 command.op = Op::Quit;
@@ -198,6 +206,9 @@ namespace sotc
                 break;
             case Op::Save:
                 ps2x::savestate::requestSave(command.path);
+                break;
+            case Op::Load:
+                ps2x::savestate::requestLoad(command.path);
                 break;
             case Op::Quit:
                 runtime->requestStop();

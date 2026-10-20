@@ -22,6 +22,10 @@ exec(compile(_src[:_src.index("def main():")], _mb_path, "exec"), mb.__dict__)
 from audio_check import close_window  # noqa: E402
 
 ISO = os.path.join(REPO, "Game", "SHADOW_COLOSSUS (PAL).iso")
+if not os.path.exists(ISO):
+    _isos = sorted(f for f in os.listdir(os.path.join(REPO, "Game")) if f.lower().endswith(".iso"))
+    if _isos:
+        ISO = os.path.join(REPO, "Game", _isos[0])
 EXE = os.path.join(REPO, "build", "port", "bin", "sotc.exe")
 DEFAULT_STATE = os.path.join(REPO, "build", "saved_states", "colossus1_prefight.state")
 HOOK = "0x1c35b0"
@@ -68,7 +72,7 @@ def expand(steps):
             out.append("+%d:call:%x:a0=$v0" % (field + 2, BOSS_DEATH_CALLBACK))
         elif op == "call":
             out.append(":".join([prefix, "call", resolve(args[0])] + list(args[1:])))
-        elif op in ("save", "peek", "poke", "pokef", "pokeb", "quit"):
+        elif op in ("save", "load", "peek", "poke", "pokef", "pokeb", "quit"):
             out.append(":".join([prefix, op] + [str(a) for a in args]))
         else:
             raise SystemExit("unknown step " + op)
