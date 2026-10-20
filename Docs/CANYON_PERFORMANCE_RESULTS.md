@@ -230,3 +230,106 @@ Copy-Item .\build\canyon-20261001\baseline-bin\sotc.pdb .\build\port\bin\sotc.pd
 No card/state restoration is required: their originals were never changed. Private test folders are
 independent of the original installation. Aggregate numbers and individual reports/settings/frames/
 timelines/resources are retained in `build/canyon-20261001/results.json` and its named capture folders.
+
+## VU1 FMAC checks and normalization, 2026-10-20
+
+Goal: bring the 75 Hz canyon fixture (`build/perf_75hz/fixture.state`, `--camera-test 16205:240:10:5`,
+fields 16265–17465) closer to 60 real game updates/s by reducing VU1 emulation cost, with exact
+semantics only. Baseline is main `8d7e0ef` (submodule `243e0fb`), same hardware as above. The user's
+`build/port/bin/states/quick.state` was not used or written; every launch loads a private fixture copy.
+
+### Where the time goes
+
+Without EE host pacing the baseline runs this scene at about 36–40 fields/s. The game thread spends about
+a third of its time in `asyncvif::sync` waiting for the VU worker, which is about 94% busy. On a recorded
+four-field trace (`build/perf_75hz/vu1perf/trace-1`, 4.73 M VU cycles per field) the VU thread spends about
+79% in compiled VU1 code, about 10% in VIF decode and about 5.5% copying XGKICK data. Inside compiled code,
+FMAC instructions are about half of the samples, and most of each FMAC is the fast-path range check that
+decides whether the single-precision result is already the PS2 result or must be redone by the exact path.
+Two segments of image `d18c8dfa` (a 47-pair vertex body and a 12-pair self loop) take about 65%.
+
+### Changes
+
+Both changes are exact: results, MAC/status/sticky flags and the normalized register copies are identical
+to the previous code for every input, and lanes that are not provably exact still take the unchanged exact path.
+
+- Lean FMAC checks. The range checks use the integer bit patterns instead of float compares. MUL, ADD and
+  SUB accept results in [FLT_MIN, FLT_MAX) instead of [4·FLT_MIN, FLT_MAX/2): under round-toward-zero such
+  a float result already equals the PS2 result with the same flags. MADD, MSUB and OPMSUB keep the previous
+  bounds, expressed as integer comparisons. In safe lanes the product's zero flag equals "an operand is zero".
+- Lean normalization. Converting a register to its PS2-normalized form (denormals to signed zero, exponent
+  255 clamped to ±max) takes 6 integer SIMD operations instead of 11.
+
+`vu1_recomp` chooses the paths when it generates `Port/generated/vu1`; default generation is byte-identical to
+before, because the lean paths are the template defaults of the runtime helpers it calls. Generating with
+`PS2X_VU1_LEAN_FMAC=0` and/or `PS2X_VU1_LEAN_NORM=0` emits the previous code (`fmacV<FK::Madd, false>`,
+`vnorm<false>(…)`), then rebuild:
+
+```powershell
+$env:PS2X_VU1_LEAN_FMAC='0'; $env:PS2X_VU1_LEAN_NORM='0'
+python Tools/generate.py --vu1-only
+Remove-Item Env:PS2X_VU1_LEAN_FMAC, Env:PS2X_VU1_LEAN_NORM
+.\build.bat
+```
+
+These are generation-time switches, not `sotc.ini` settings. A runtime switch was built and measured first:
+a per-instruction branch in the hot path, with both paths inlined or with the reference out of line, made the
+compiled VU code 15–30% slower on MSVC, more than the change saves.
+
+Tried and rejected: keeping registers in locals across iterations of a self-looping segment. It was exact
+(zero mismatches) but slower on the trace (84.5 versus 81 M thread cycles per field) and was removed.
+
+### Results
+
+Trace bench (`sotc_vu1_bench <trace> --repeat 20 --cpu-cycles`), medians of six alternating pairs on a quiet machine:
+
+| VU1 trace metric | Baseline | New |
+|---|---:|---:|
+| Wall ms per field | 19.65 | 17.42 |
+| VU thread CPU cycles per field | 87.3 M | 79.1 M |
+
+Seven further pairs on the final build under about 50% unrelated CPU load give 25.42 / 22.48 ms and
+108.7 / 98.6 M cycles per field: the same ~9–11% reduction.
+
+In-game captures alternate baseline and new, each 33 s from the private fixture copy, VSync on, 75 Hz.
+Medians per run, then the median across runs:
+
+| Canyon metric | Baseline | New |
+|---|---:|---:|
+| Fields/s without EE host pacing (6 pairs) | 37.19 | 41.53 |
+| Range | 35.76–39.62 | 36.16–42.91 |
+| Other processes' busy CPU cores | 2.30 | 1.82 |
+| Game updates/s with pacing (3 pairs) | 33.36 | 34.61 |
+| Range | 31.88–33.42 | 33.91–35.71 |
+| Update interval median / p95 / p99 with pacing, ms | 26.67 / 50.21 / 59.75 | 24.27 / 49.07 / 58.78 |
+| Other processes' busy CPU cores with pacing | 1.37 | 1.69 |
+| Emulated VBlanks/s and game clock with pacing | 59.95 / 1.000 | 59.93 / 1.000 |
+
+The new build won five of six unpaced pairs; the one loss ran with 3.9 other busy cores. Comparing only
+unpaced runs with 1.3–1.5 other cores gives 39.62 fields/s for the baseline and 42.40–42.91 for the new
+build, about +7–8%. Every paced new run exceeded every paced baseline run despite slightly more background
+load. Background applications (Discord, Edge, editors, other assistants) were left running.
+
+This is a real but modest gain. The scene remains far from 60 updates/s: without pacing it emulates about
+0.69 game seconds per wall second, and with pacing actual updates stay near 35/s with a p95 interval near
+50 ms. Reaching 60 needs roughly 30–35% less VU thread time per field beyond this. Candidates that keep exact
+semantics are segment-level deferred FMAC validation with rollback, and moving VIF decode and XGKICK copying
+off the VU thread.
+
+### Correctness
+
+- `sotc_vu1_bench --verify` on the canyon trace: 49,152 executions, 0 mismatches (final build).
+- Live `PS2X_VU1_VERIFY=1` on the fixture (`build/perf_75hz/lean-verify-vu`): 229,376 VU1 runs, 0 mismatches.
+- New runtime test `lean FMAC checks and normalization match the reference paths`: 200,000 normalization
+  samples and 60,000 cancellation-prone operand sets for each of ADD, SUB, MUL, MADD, MSUB, OPMSUB and OPMULA
+  (both FMAC flag modes), lean versus reference results, normalized values and flags compared bit for bit.
+- `ps2x_tests`: 470 of 476 pass, including all VU/VU1 tests. The six failures are unrelated to this change:
+  five `PS2FloatSemantics` tests expect upstream PS2-hardware EE results that the port's restored EE float
+  semantics (`243e0fb`) intentionally do not use, and `golden GS recordings are present` fails because no
+  `.gsr` goldens exist in this checkout.
+- Reference generation (`PS2X_VU1_LEAN_FMAC=0`, `PS2X_VU1_LEAN_NORM=0`) compiles into `sotc_vu1_bench_alt`
+  (`-DSOTC_VU1_ALT_DIR=<generated dir>`) and verifies with 0 mismatches.
+
+The in-game A/B used the new build before two final cleanups that do not touch generated code (an unused
+include and restoring the previous normalization in the once-per-entry register resync); the trace and live
+verification above use the final build. Captures are `build/perf_75hz/lean-{u,p}N-{base,new}` in the main checkout.

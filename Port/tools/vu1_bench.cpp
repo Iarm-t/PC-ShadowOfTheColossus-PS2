@@ -46,9 +46,18 @@ namespace
             thread = std::thread([this, target]()
                                  {
                                      timeBeginPeriod(1);
+                                     const char *intervalValue = std::getenv("BENCH_PROFILE_US");
+                                     const auto interval = std::chrono::microseconds(intervalValue ? std::atoi(intervalValue) : 0);
                                      while (running.load())
                                      {
-                                         Sleep(1);
+                                         if (interval.count() > 0)
+                                         {
+                                             const auto until = std::chrono::steady_clock::now() + interval;
+                                             while (std::chrono::steady_clock::now() < until)
+                                                 YieldProcessor();
+                                         }
+                                         else
+                                             Sleep(1);
                                          if (!active.load())
                                              continue;
                                          if (SuspendThread(target) == static_cast<DWORD>(-1))
@@ -116,7 +125,8 @@ namespace
                     std::printf("  %6.2f%%  %s\n", 100.0 * sorted[i].first / std::max<uint64_t>(samples, 1u), sorted[i].second.c_str());
             };
             top("functions", functions, 25);
-            top("lines", lines, 60);
+            const char *linesValue = std::getenv("BENCH_PROFILE_LINES");
+            top("lines", lines, linesValue ? static_cast<size_t>(std::atoi(linesValue)) : 60u);
         }
     };
 
