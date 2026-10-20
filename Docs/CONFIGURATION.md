@@ -22,6 +22,7 @@ SOTC_VIDEO_MODE=NTSC
 SOTC_WIDESCREEN=1
 SOTC_WINDOW_MAXIMIZED=1
 SOTC_VSYNC=1
+SOTC_FPS_LIMIT=360
 PS2X_BIND_UP=UP
 PS2X_BIND_DOWN=DOWN
 PS2X_BIND_LEFT=LEFT
@@ -46,9 +47,19 @@ Set `PS2X_MEMCARD=0` to run without a memory card. The slot 1 card image is stor
 
 `SOTC_VSYNC=1` synchronizes the host window to the monitor's refresh rate, without a second
 60 Hz software limiter. On monitors above 60 Hz, input is sampled at the display cadence while
-the emulated game retains its own NTSC/PAL timing. Set `SOTC_VSYNC=0` to disable VSync and use
-a 120 Hz host window and input polling limit. This can reduce input delay but can show tearing.
-Existing INI files gain this setting on launch.
+the emulated game retains its own NTSC/PAL timing. Set `SOTC_VSYNC=0` to disable VSync; the host
+window then presents and polls input up to `SOTC_FPS_LIMIT` frames per second (default `360`).
+This can reduce input delay but can show tearing. `SOTC_FPS_LIMIT=0` removes the cap; an uncapped
+window redraws the same game image thousands of times per second, using GPU and CPU time the
+emulator could otherwise use. A cap at your monitor's refresh rate is the lightest choice.
+Neither setting changes the game's own update rate. Existing INI files gain these settings on launch.
+
+Press F3 to show or hide the performance overlay. `FPS` and `Frame` are host window presents and
+their average and worst interval over the last half second. `Game` is the game's scheduler update
+counter (`0x1DC9EC`), the real game frame rate. `GS frames` counts new images composited by the GPU
+backend (shared-texture path only), and `VBlank` is the emulated field rate (60 NTSC, 50 PAL; lower
+means the emulation is running slow). The graph shows recent host frame times up to 50 ms, with
+lines at 16.7 ms and 33.3 ms. `PS2X_PERF_OVERLAY=1` shows the overlay at startup.
 
 The experimental `PS2X_GS_DIRECT_PRESENT=1` path shares OpenGL textures between the GS worker
 and the window. CRTC output stays on the GPU: its buffer becomes a texture through a GPU pixel-buffer

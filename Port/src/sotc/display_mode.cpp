@@ -4,12 +4,15 @@
 #include "ps2_runtime_macros.h"
 #include "runtime/ps2_memory.h"
 #include "runtime/ps2_display_options.h"
+#include "runtime/ps2_perf_overlay.h"
 #include "raylib.h"
 
+#include <charconv>
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 
 namespace sotc
@@ -28,6 +31,7 @@ namespace sotc
         constexpr uint32_t kWideRatio = 0x012939CCu;
         constexpr uint32_t kGsRegister = 0x001C0928u;
         constexpr uint32_t kFloatToFixed = 0x001B9498u;
+        constexpr uint32_t kSchedulerUpdateCounter = 0x001DC9ECu;
 
         uint32_t g_videoMode = 0u;
         bool g_widescreen = true;
@@ -142,10 +146,24 @@ namespace sotc
     {
         const char *setting = std::getenv("SOTC_VSYNC");
         const bool vsync = !setting || std::string_view(setting) != "0";
+        int limit = 360;
+        if (const char *limitSetting = std::getenv("SOTC_FPS_LIMIT"); limitSetting && *limitSetting)
+        {
+            const std::string_view value(limitSetting);
+            const auto [end, error] = std::from_chars(value.data(), value.data() + value.size(), limit);
+            if (error != std::errc{} || end != value.data() + value.size() || limit < 0)
+            {
+                SOTC_ERROR(Boot, "invalid SOTC_FPS_LIMIT='" << value << "'; using 360");
+                limit = 360;
+            }
+        }
         if (vsync)
             SetWindowState(FLAG_VSYNC_HINT);
-        SetTargetFPS(vsync ? 0 : 120);
-        SOTC_INFO(Boot, "host display: " << (vsync ? "monitor VSync" : "120 Hz polling, VSync off"));
+        SetTargetFPS(limit);
+        if (vsync)
+            SOTC_INFO(Boot, "host display: monitor VSync" << (limit > 0 ? ", " + std::to_string(limit) + " FPS limit" : std::string{}));
+        else
+            SOTC_INFO(Boot, "host display: VSync off, " << (limit > 0 ? std::to_string(limit) + " FPS limit" : std::string("uncapped")));
     }
 
     void installDisplayMode(PS2Runtime &runtime)
@@ -189,6 +207,8 @@ namespace sotc
                                               ReplacementStatus::Native, "preserve font proportions at the window aspect"))
             throw std::runtime_error("cannot install widescreen display hooks");
         SOTC_INFO(Boot, "display aspect: " << (g_widescreen ? "adaptive widescreen" : "4:3"));
+        const uint8_t *rdram = runtime.memory().getRDRAM();
+        ps2x::perfoverlay::addCounter("Game", [rdram]() { return uint64_t{read32(rdram, kSchedulerUpdateCounter)}; }, 0xFFFFFFFFull);
         if (const char *setting = std::getenv("SOTC_VIDEO_MODE"))
         {
             const std::string_view value(setting);

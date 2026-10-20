@@ -25,7 +25,7 @@ namespace sotc::config
             "PS2X_VU1_RECOMP=1\n"
             "SOTC_VIDEO_MODE=NTSC\n";
 
-        constexpr std::array<std::pair<std::string_view, std::string_view>, 25> kMigratedSettings{{
+        constexpr std::array<std::pair<std::string_view, std::string_view>, 26> kMigratedSettings{{
             {"SOTC_DISABLE_MOTION_BLUR", "0"},
             {"PS2X_GS_DIRECT_PRESENT", "1"},
             {"PS2X_GS_COMPACT_QUEUE", "1"},
@@ -33,6 +33,7 @@ namespace sotc::config
             {"PS2X_VIF_SIMD_UNPACK", "1"},
             {"PS2X_VU1_SIMD_CLIP", "1"},
             {"SOTC_VSYNC", "1"},
+            {"SOTC_FPS_LIMIT", "360"},
             {"SOTC_WIDESCREEN", "1"},
             {"SOTC_WINDOW_MAXIMIZED", "1"},
             {"PS2X_BIND_UP", "UP"},
