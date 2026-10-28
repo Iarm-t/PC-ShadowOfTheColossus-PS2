@@ -135,6 +135,26 @@ Recompiled VU1 programs are optional. Without them VU1 code runs in the interpre
 them means capturing the game's VU1 microcode at run time (`PS2X_VU1_CAPTURE`) and running the `vu1_recomp`
 tool; see the VU1 sections of [Docs/PROGRESS.md](Docs/PROGRESS.md).
 
+### Linux (experimental)
+
+The same pipeline builds a native Linux x86-64 executable with GCC or Clang. You need a CPU with AVX2, a GPU
+driver with OpenGL 4.6 (Mesa or proprietary), Python 3.10+, CMake 3.24+, Ninja and the X11/OpenGL development
+headers:
+
+```sh
+# Debian/Ubuntu; setup.sh prints the Fedora and Arch equivalents
+sudo apt install build-essential cmake ninja-build pkg-config \
+    libgl-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+git clone --recursive <this repository>
+cd <repository>
+./setup.sh
+```
+
+`setup.sh` follows the same steps as `setup.bat`; `configure.sh`, `build.sh`, `Tools/generate.sh` and `run.sh`
+are the manual equivalents of the `.bat` scripts. The executable is `build/port/bin/sotc`. The build limits
+parallel compiler jobs to about one per 2 GB of RAM; set `SOTC_JOBS` to override it. The disc requirement is the
+same PAL SCES-53326 v1.00 image.
+
 ## Controls
 
 | Action | Default |
