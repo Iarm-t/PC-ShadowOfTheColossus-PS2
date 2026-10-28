@@ -2,8 +2,9 @@
 
 # Shadow of the Colossus — native PC port (fully vibe-coded)
 
-An unofficial native Windows port of **Shadow of the Colossus** (PS2, PAL, SCES-53326 v1.00), built by statically
-recompiling the game's PlayStation 2 code to C++ with [PS2Recomp](https://github.com/ran-j/PS2Recomp).
+An unofficial native Windows port of **Shadow of the Colossus** (PS2, PAL, SCES-53326 v1.00), with an experimental
+Linux build, made by statically recompiling the game's PlayStation 2 code to C++ with
+[PS2Recomp](https://github.com/ran-j/PS2Recomp).
 
 **This project is fully vibe-coded.** Every line of code, every tool and every document in this repository was
 written by AI coding agents (Anthropic's Claude through Claude Code, and OpenAI's ChatGPT/Codex). A human directed
@@ -35,14 +36,14 @@ it works surprisingly well, and some of it is strange.
 - The first time a new kind of surface appears, a few frames can be slower while its GPU shader compiles in the
   background. Compiled shaders are cached on disk, so this happens once per PC.
 - Audio is functional but not a perfect SPU2 reproduction.
-- Only Windows and only the PAL v1.00 disc are supported.
-- On GPUs without `GL_ARB_fragment_shader_interlock` (for example AMD on Windows OpenGL), the renderer falls back
-  to the slower compute-shader path automatically.
+- Only the PAL v1.00 disc is supported. Windows is the main platform; the Linux build is experimental.
+- On GPUs without `GL_ARB_fragment_shader_interlock` (for example AMD on Windows OpenGL, and AMD with Mesa's
+  radeonsi driver on Linux), the renderer falls back to the slower compute-shader path automatically.
 
 ## How it works
 
 - **EE (main CPU):** the game's MIPS R5900 code (boot ELF plus the `KERNEL`, `MANAGER` and `GAMECORE` XFF modules,
-  relocated statically) is translated to C++ ahead of time and compiled with MSVC. A small runtime provides the
+  relocated statically) is translated to C++ ahead of time and compiled with MSVC (GCC or Clang on Linux). A small runtime provides the
   PS2 kernel, threads, interrupts, timers and DMA.
 - **VU1 (vector unit):** the game's VU1 microprograms are recompiled to C++ as well and run on their own thread,
   with an interpreter fallback.
@@ -69,6 +70,8 @@ Only the PAL SCES-53326 v1.00 disc is supported. Windows x64, an AVX2-capable CP
 To create a package from a finished build, see [Docs/RELEASING.md](Docs/RELEASING.md).
 
 ## Source build requirements
+
+These are for Windows; the Linux requirements are in [Linux (experimental)](#linux-experimental).
 
 - Windows 10 or 11, x64.
 - MSVC x64 build tools from Visual Studio 2022 or newer (including Visual Studio 2026), or the standalone
@@ -135,6 +138,30 @@ Recompiled VU1 programs are optional. Without them VU1 code runs in the interpre
 them means capturing the game's VU1 microcode at run time (`PS2X_VU1_CAPTURE`) and running the `vu1_recomp`
 tool; see the VU1 sections of [Docs/PROGRESS.md](Docs/PROGRESS.md).
 
+### Linux (experimental)
+
+The same pipeline builds a native Linux x86-64 executable with GCC or Clang. You need a CPU with AVX2, a GPU
+driver with OpenGL 4.6 (Mesa or proprietary), Python 3.10+, CMake 3.24+, Ninja and the X11/OpenGL development
+headers:
+
+```sh
+# Debian/Ubuntu; setup.sh prints the Fedora and Arch equivalents
+sudo apt install build-essential cmake ninja-build pkg-config \
+    libgl-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+git clone --recursive <this repository>
+cd <repository>
+./setup.sh
+```
+
+`setup.sh` follows the same steps as `setup.bat`; `configure.sh`, `build.sh`, `Tools/generate.sh` and `run.sh`
+are the manual equivalents of the `.bat` scripts. The executable is `build/port/bin/sotc`. The build limits
+parallel compiler jobs to about one per 2 GB of RAM; set `SOTC_JOBS` to override it. The disc requirement is the
+same PAL SCES-53326 v1.00 image.
+
+The window uses X11; on a Wayland desktop it runs through XWayland. Mesa's AMD driver (radeonsi) has no
+`GL_ARB_fragment_shader_interlock`, so AMD GPUs use the compute-shader renderer. It has been tuned on a Radeon 680M
+integrated GPU, where riding in the open field runs at about 45 fps.
+
 ## Controls
 
 | Action | Default |
@@ -152,6 +179,7 @@ tool; see the VU1 sections of [Docs/PROGRESS.md](Docs/PROGRESS.md).
 | Start / Select | Enter / Tab |
 | L3 / R3 | H / G |
 | Save state / load state | F5 / F9 |
+| Performance overlay | F3 |
 | Fullscreen | F11 |
 
 A gamepad also works. Bindings, mouse sensitivity, stick inversion, widescreen, video mode and the renderer
